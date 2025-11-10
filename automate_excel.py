@@ -381,6 +381,40 @@ def main():
         for err in errors[:10]:  # Show first 10 errors
             print(f"    - {err}")
 
+    # Calculate and populate Delta column (Data effettiva - Data prevista)
+    print(f"\nCalculating Delta column (Data effettiva - Data prevista)...")
+
+    # Find Delta column
+    delta_col_idx = None
+    for col_idx in range(1, new_ws.max_column + 1):
+        header_value = new_ws.cell(header_row, col_idx).value
+        if header_value == "Delta":
+            delta_col_idx = col_idx
+            break
+
+    if delta_col_idx:
+        delta_populated = 0
+        for row_idx in range(2, new_ws.max_row + 1):
+            effettiva_val = new_ws.cell(row_idx, final_col_idx).value
+            prevista_val = new_ws.cell(row_idx, consolidated_col_idx).value
+
+            # Calculate delta if both dates exist
+            if effettiva_val and prevista_val:
+                try:
+                    # Ensure both are datetime objects
+                    if hasattr(effettiva_val, 'date') and hasattr(prevista_val, 'date'):
+                        delta_days = (effettiva_val - prevista_val).days
+                        delta_cell = new_ws.cell(row_idx, delta_col_idx)
+                        delta_cell.value = delta_days
+                        delta_cell.number_format = '0'  # Integer format
+                        delta_populated += 1
+                except Exception as e:
+                    pass  # Skip rows with calculation errors
+
+        print(f"  Populated {delta_populated} rows with delta values")
+    else:
+        print("  Warning: Delta column not found")
+
     # Save the new workbook
     print(f"\nSaving output file: {output_file}")
     new_wb.save(output_file)
