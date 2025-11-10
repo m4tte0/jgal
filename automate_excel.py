@@ -5,6 +5,62 @@ import re
 import os
 from pathlib import Path
 from copy import copy
+import csv
+from datetime import datetime
+
+def find_jgal_file(jgal_folder, articolo, revisione):
+    """
+    Find the matching CSV file in jgal folder based on Articolo and Revisione.
+
+    Matching logic:
+    1. Replace "/" with "_" in articolo name (filesystem compatibility)
+    2. If Revisione > 0: First try {Articolo}_rev{Revisione}.csv
+    3. If not found or Revisione = 0: Try {Articolo}.csv
+    4. Return the matched file path or None if not found
+    """
+    # Convert to string and replace "/" with "_" for filesystem compatibility
+    articolo_normalized = str(articolo).replace('/', '_')
+
+    # Always try with revision suffix first (including _rev0)
+    if revisione is not None:
+        rev_file = jgal_folder / f"{articolo_normalized}_rev{int(revisione)}.csv"
+        if rev_file.exists():
+            return rev_file
+
+    # Try without revision suffix as fallback
+    base_file = jgal_folder / f"{articolo_normalized}.csv"
+    if base_file.exists():
+        return base_file
+
+    return None
+
+def extract_date_from_jgal_csv(csv_file):
+    """
+    Extract the date from a jgal CSV file where Sequenza = 90.
+
+    Returns a datetime object or None if not found.
+    """
+    try:
+        with open(csv_file, 'r', encoding='utf-8', errors='ignore') as f:
+            reader = csv.DictReader(f, delimiter=';')
+
+            for row in reader:
+                sequenza = row.get('Sequenza', '').strip()
+                if sequenza == '90':
+                    date_str = row.get('Data', '').strip()
+                    if date_str:
+                        # Parse date in format DD/MM/YY
+                        try:
+                            date_obj = datetime.strptime(date_str, '%d/%m/%y')
+                            return date_obj
+                        except ValueError:
+                            # Try other common formats if needed
+                            pass
+                    break
+    except Exception as e:
+        print(f"Error reading {csv_file}: {e}")
+
+    return None
 
 def extract_date_from_filename(filename):
     """Extract date from Planning filename in format Planning_yy_mm_dd.xlsx"""
@@ -259,7 +315,7 @@ def main():
 
     print(f"  Populated {consolidated_count} rows with consolidated dates (using last valid Planning date)")
 
-    # Add "Data effettiva avanzamento" column (empty for now, waiting for instructions)
+    # Add "Data effettiva avanzamento" column and populate from jgal CSV files
     final_col_idx = consolidated_col_idx + 1
     final_col_letter = get_column_letter(final_col_idx)
 
@@ -270,7 +326,60 @@ def main():
     copy_cell_style(first_header, final_header)
     new_ws.column_dimensions[final_col_letter].width = 20
 
-    print(f"  Added column {final_col_letter}: Data effettiva avanzamento (empty)")
+    print(f"\nAdding and populating column {final_col_letter}: Data effettiva avanzamento")
+
+    # Find Articolo and Revisione columns
+    articolo_col_idx = None
+    revisione_col_idx = None
+    for col_idx in range(1, new_ws.max_column + 1):
+        header_value = new_ws.cell(header_row, col_idx).value
+        if header_value == "Articolo":
+            articolo_col_idx = col_idx
+        elif header_value == "Revisione":
+            revisione_col_idx = col_idx
+
+    if not articolo_col_idx or not revisione_col_idx:
+        print("ERROR: Could not find 'Articolo' or 'Revisione' column!")
+        return None
+
+    # Process each row to extract "Data effettiva avanzamento"
+    jgal_folder = Path("_ref/jgal")
+    populated_count = 0
+    error_count = 0
+    errors = []
+
+    for row_idx in range(2, new_ws.max_row + 1):
+        articolo = new_ws.cell(row_idx, articolo_col_idx).value
+        revisione = new_ws.cell(row_idx, revisione_col_idx).value
+
+        if not articolo:
+            continue
+
+        try:
+            # Find the matching CSV file
+            matching_file = find_jgal_file(jgal_folder, articolo, revisione)
+
+            if not matching_file:
+                raise Exception(f"No matching file found for Articolo={articolo}, Revisione={revisione}")
+
+            # Extract date from CSV file (Sequenza=90)
+            date_value = extract_date_from_jgal_csv(matching_file)
+
+            if date_value:
+                target_cell = new_ws.cell(row_idx, final_col_idx)
+                target_cell.value = date_value
+                target_cell.number_format = 'YYYY-MM-DD'
+                populated_count += 1
+
+        except Exception as e:
+            error_count += 1
+            errors.append(f"Row {row_idx} (Articolo={articolo}, Revisione={revisione}): {str(e)}")
+
+    print(f"  Populated {populated_count} rows")
+    if error_count > 0:
+        print(f"  Errors: {error_count}")
+        for err in errors[:10]:  # Show first 10 errors
+            print(f"    - {err}")
 
     # Save the new workbook
     print(f"\nSaving output file: {output_file}")
