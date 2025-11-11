@@ -122,8 +122,16 @@ def analyze_delivery_performance():
     create_visualizations(deltas, prevista_dates, effettiva_dates, articolo_names,
                          early_count, on_time_count, late_count, monthly_deltas)
 
+    # Generate comprehensive text summary
+    generate_text_summary(deltas, articolo_names, monthly_deltas,
+                         early_count, on_time_count, late_count,
+                         avg_delta, median_delta, std_delta, min_delta, max_delta,
+                         total_items, performance_score)
+
     print(f"\n{'='*80}")
-    print(f"Analysis complete! Charts saved to 'delivery_analysis_*.png'")
+    print(f"Analysis complete!")
+    print(f"  - Charts saved: 'delivery_analysis_*.png'")
+    print(f"  - Summary saved: 'analysis_summary.txt'")
     print(f"{'='*80}")
 
 def create_visualizations(deltas, prevista_dates, effettiva_dates, articolo_names,
@@ -309,6 +317,164 @@ def create_detailed_charts(deltas, articolo_names, prevista_dates, effettiva_dat
     print("[+] Saved: delivery_analysis_top_performers.png")
 
     plt.close('all')
+
+def generate_text_summary(deltas, articolo_names, monthly_deltas,
+                         early_count, on_time_count, late_count,
+                         avg_delta, median_delta, std_delta, min_delta, max_delta,
+                         total_items, performance_score):
+    """Generate comprehensive text summary file"""
+
+    from datetime import datetime
+
+    # Sort items for best/worst performers
+    sorted_items = sorted(zip(deltas, articolo_names), key=lambda x: x[0])
+    sorted_worst = sorted_items[-10:][::-1]
+    sorted_best = sorted_items[:10]
+
+    # Calculate percentages
+    early_pct = (early_count / total_items * 100) if total_items > 0 else 0
+    on_time_pct = (on_time_count / total_items * 100) if total_items > 0 else 0
+    late_pct = (late_count / total_items * 100) if total_items > 0 else 0
+
+    with open('analysis_summary.txt', 'w', encoding='utf-8') as f:
+        f.write("="*80 + "\n")
+        f.write("DELIVERY PERFORMANCE ANALYSIS - COMPREHENSIVE INSIGHTS\n")
+        f.write("="*80 + "\n")
+        f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("Data Source: Avanzamento_schede_automated.xlsx\n")
+        f.write(f"Items Analyzed: {total_items}\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("EXECUTIVE SUMMARY\n")
+        f.write("="*80 + "\n\n")
+        f.write(f"Performance Score: {performance_score:.1f}% items delivered on-time or early\n")
+        f.write(f"Average delay: {avg_delta:.1f} days\n")
+        f.write(f"Standard deviation: {std_delta:.1f} days (indicates inconsistent performance)\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("PERFORMANCE DISTRIBUTION\n")
+        f.write("="*80 + "\n\n")
+        f.write(f"{'Category':<25} {'Count':<10} {'Percentage':<15} {'Status'}\n")
+        f.write("-"*80 + "\n")
+        f.write(f"{'Early (Delta < 0)':<25} {early_count:<10} {early_pct:>6.1f}%      GOOD - Before deadline\n")
+        f.write(f"{'On-time (Delta = 0)':<25} {on_time_count:<10} {on_time_pct:>6.1f}%      PERFECT - Exactly on time\n")
+        f.write(f"{'Late (Delta > 0)':<25} {late_count:<10} {late_pct:>6.1f}%      NEEDS ATTENTION - Exceeded deadline\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("KEY STATISTICS\n")
+        f.write("="*80 + "\n\n")
+        f.write("Delta Statistics (days):\n")
+        f.write(f"  Average:   {avg_delta:>7.1f} days\n")
+        f.write(f"  Median:    {median_delta:>7.1f} days\n")
+        f.write(f"  Std Dev:   {std_delta:>7.1f} days\n")
+        f.write(f"  Min:       {min_delta:>7d} days (best: earliest delivery)\n")
+        f.write(f"  Max:       {max_delta:>7d} days (worst: most delayed)\n\n")
+
+        f.write("INTERPRETATION:\n")
+        f.write(f"The median of {median_delta:.0f} days suggests that half of all items meet their\n")
+        f.write(f"deadline. The mean of {avg_delta:+.1f} days indicates the average performance.\n")
+        f.write(f"The high standard deviation ({std_delta:.1f} days) reveals inconsistent\n")
+        f.write("performance across projects.\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("CRITICAL ISSUES - TOP 10 MOST DELAYED ITEMS\n")
+        f.write("="*80 + "\n\n")
+        f.write(f"{'Rank':<6} {'Articolo':<25} {'Delay (days)':<15} {'Impact'}\n")
+        f.write("-"*80 + "\n")
+        for i, (delta, articolo) in enumerate(sorted_worst, 1):
+            severity = "CRITICAL" if delta > 100 else "HIGH" if delta > 60 else "MEDIUM"
+            months = abs(delta) / 30
+            f.write(f"{i:<6} {articolo:<25} {delta:>4d}            {severity:<8} ~{months:.1f} months late\n")
+
+        f.write("\nACTION REQUIRED:\n")
+        f.write("Items delayed by 4+ months require immediate investigation!\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("EXCELLENCE EXAMPLES - TOP 10 EARLIEST DELIVERIES\n")
+        f.write("="*80 + "\n\n")
+        f.write(f"{'Rank':<6} {'Articolo':<25} {'Early (days)':<15} {'Achievement'}\n")
+        f.write("-"*80 + "\n")
+        for i, (delta, articolo) in enumerate(sorted_best, 1):
+            achievement = "Outstanding" if delta < -50 else "Excellent" if delta < -10 else "Very Good"
+            months = abs(delta) / 30
+            f.write(f"{i:<6} {articolo:<25} {delta:>4d}            {achievement:<12} ~{months:.1f} months early\n")
+
+        f.write("\nBEST PRACTICE OPPORTUNITY:\n")
+        if sorted_best:
+            best_delta, best_articolo = sorted_best[0]
+            f.write(f"{best_articolo} was delivered {abs(best_delta)} days early!\n")
+            f.write("RECOMMENDATION: Study this success to replicate best practices.\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("MONTHLY TREND ANALYSIS\n")
+        f.write("="*80 + "\n\n")
+        f.write(f"{'Month':<15} {'Avg Delta':<15} {'Items':<10} {'On-time %'}\n")
+        f.write("-"*80 + "\n")
+        for month in sorted(monthly_deltas.keys()):
+            month_data = monthly_deltas[month]
+            avg = np.mean(month_data)
+            count = len(month_data)
+            on_time_pct = sum(1 for d in month_data if d <= 0) / count * 100
+            performance = "EXCELLENT" if on_time_pct >= 95 else "GOOD" if on_time_pct >= 75 else "NEEDS IMPROVEMENT"
+            f.write(f"{month:<15} {avg:>7.1f} days    {count:>4d}      {on_time_pct:>5.1f}%  ({performance})\n")
+
+        f.write("\n" + "="*80 + "\n")
+        f.write("RECOMMENDATIONS\n")
+        f.write("="*80 + "\n\n")
+        f.write("IMMEDIATE ACTIONS:\n")
+        f.write("1. Investigate top 3-5 most delayed items for root causes\n")
+        f.write("2. Review months with 0% on-time rate for systemic issues\n")
+        f.write("3. Study best performers to identify success factors\n\n")
+
+        f.write("SHORT-TERM IMPROVEMENTS (1-3 Months):\n")
+        f.write("4. Implement buffer time for complex projects\n")
+        f.write("5. Reduce variance through standardization\n")
+        f.write(f"6. Target: Reduce standard deviation from {std_delta:.1f} to <20 days\n\n")
+
+        f.write("LONG-TERM STRATEGY (3-6 Months):\n")
+        f.write(f"7. Target performance goal: 80%+ on-time or early (current: {performance_score:.1f}%)\n")
+        f.write("8. Eliminate extreme outliers (no delays >30 days)\n")
+        f.write("9. Implement continuous improvement culture\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("PERFORMANCE BENCHMARKING\n")
+        f.write("="*80 + "\n\n")
+        f.write("Industry Standards:\n")
+        f.write("- World-class: 95%+ on-time delivery\n")
+        f.write("- Good: 85-95% on-time delivery\n")
+        f.write("- Average: 70-85% on-time delivery\n")
+        f.write("- Below average: <70% on-time delivery\n\n")
+        f.write(f"Your Current Position: {performance_score:.1f}% = ")
+        if performance_score >= 85:
+            f.write("Good performance\n")
+        elif performance_score >= 70:
+            f.write("Average performance\n")
+        else:
+            f.write("Below average (but improving)\n")
+        f.write("\n")
+
+        f.write("="*80 + "\n")
+        f.write("CONCLUSION\n")
+        f.write("="*80 + "\n\n")
+        f.write(f"Current State: {performance_score:.1f}% on-time performance\n")
+        f.write(f"Target State: 80%+ on-time performance with <20 days standard deviation\n\n")
+        f.write("Path Forward:\n")
+        f.write("1. Address critical delays (4+ months late)\n")
+        f.write("2. Replicate success factors from best performers\n")
+        f.write("3. Reduce variance through process improvements\n")
+        f.write("4. Build sustainable excellence through continuous improvement\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("VISUALIZATIONS GENERATED\n")
+        f.write("="*80 + "\n\n")
+        f.write("1. delivery_analysis_overview.png - Comprehensive dashboard\n")
+        f.write("2. delivery_analysis_top_performers.png - Best/worst comparison\n\n")
+
+        f.write("="*80 + "\n")
+        f.write("END OF ANALYSIS\n")
+        f.write("="*80 + "\n")
+
+    print("[+] Saved: analysis_summary.txt")
 
 if __name__ == "__main__":
     analyze_delivery_performance()
