@@ -44,7 +44,21 @@ def extract_date_from_jgal_csv(csv_file):
         with open(csv_file, 'r', encoding='utf-8', errors='ignore') as f:
             reader = csv.DictReader(f, delimiter=';')
 
+            # Debug: Print available columns (only once per file)
+            first_row = True
+            found_descrizione_col = False
+
             for row in reader:
+                if first_row:
+                    # Check if the column exists
+                    if 'Descrizione Attività' in row:
+                        found_descrizione_col = True
+                    else:
+                        print(f"  WARNING: 'Descrizione Attività' column not found in {csv_file.name}")
+                        print(f"  Available columns: {list(row.keys())[:10]}...")  # Show first 10 columns
+                        return None
+                    first_row = False
+
                 descrizione = row.get('Descrizione Attività', '').strip()
 
                 # Match on Descrizione Attività only
@@ -59,6 +73,11 @@ def extract_date_from_jgal_csv(csv_file):
                             # Try other common formats if needed
                             pass
                     break
+
+            # If we went through all rows without finding a match
+            if found_descrizione_col:
+                print(f"  INFO: No row with 'Uff. Tec. (Software)' found in {csv_file.name}")
+
     except Exception as e:
         print(f"Error reading {csv_file}: {e}")
 
