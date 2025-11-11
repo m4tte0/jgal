@@ -36,7 +36,7 @@ def find_jgal_file(jgal_folder, articolo, revisione):
 
 def extract_date_from_jgal_csv(csv_file):
     """
-    Extract the date from a jgal CSV file where Descrizione Attività = 'Uff. Tec. (Software)' AND Sequenza = 195.
+    Extract the date from a jgal CSV file where Descrizione Attività = 'Uff. Tec. (Software)'.
 
     Returns a datetime object or None if not found.
     """
@@ -45,11 +45,10 @@ def extract_date_from_jgal_csv(csv_file):
             reader = csv.DictReader(f, delimiter=';')
 
             for row in reader:
-                sequenza = row.get('Sequenza', '').strip()
                 descrizione = row.get('Descrizione Attività', '').strip()
 
-                # Match both conditions: Descrizione Attività AND Sequenza
-                if descrizione == 'Uff. Tec. (Software)' and sequenza == '195':
+                # Match on Descrizione Attività only
+                if descrizione == 'Uff. Tec. (Software)':
                     date_str = row.get('Data', '').strip()
                     if date_str:
                         # Parse date in format DD/MM/YY
@@ -365,7 +364,7 @@ def main():
             if not matching_file:
                 raise Exception(f"No matching file found for Articolo={articolo}, Revisione={revisione}")
 
-            # Extract date from CSV file (Descrizione Attività='Uff. Tec. (Software)' AND Sequenza=195)
+            # Extract date from CSV file (Descrizione Attività='Uff. Tec. (Software)')
             date_value = extract_date_from_jgal_csv(matching_file)
 
             if date_value:
